@@ -3,6 +3,7 @@ package comptoirs.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
@@ -30,7 +31,7 @@ public class CommandeService {
     // @Autowired
     // Spring initialisera automatiquement ces paramètres
     public CommandeService(CommandeRepository commandeDao, ClientRepository clientDao, LigneRepository ligneDao,
-            ProduitRepository produitDao) {
+                           ProduitRepository produitDao) {
         this.commandeDao = commandeDao;
         this.clientDao = clientDao;
         this.ligneDao = ligneDao;
@@ -88,8 +89,19 @@ public class CommandeService {
      */
     @Transactional
     public Ligne ajouterLigne(int commandeNum, int produitRef, @Positive int quantite) {
-        // TODO : implémenter cette méthode
-        throw new UnsupportedOperationException("Pas encore implémenté");
+
+        var commande = commandeDao.findById(commandeNum).orElseThrow();
+        var produit = produitDao.findById(produitRef).orElseThrow();
+
+
+        if(produit.getUnitesEnStock()<quantite || commande.getEnvoyeele()!=null){
+            throw new IllegalStateException();
+        }
+        Ligne l = new Ligne(commande,produit,quantite);
+        ligneDao.save(l);
+        produit.setUnitesCommandees(produit.getUnitesCommandees()+1) ;
+        return l;
+
     }
 
     /**
@@ -108,7 +120,25 @@ public class CommandeService {
      */
     @Transactional
     public Commande enregistreExpedition(int commandeNum) {
-        // TODO : implémenter cette méthode
-        throw new UnsupportedOperationException("Pas encore implémenté");
+
+        var commande = commandeDao.findById(commandeNum).orElseThrow();
+
+        if(commande.getEnvoyeele()!=null ){
+            throw new IllegalStateException();
+        }
+        commande.setEnvoyeele(LocalDate.now());
+        for(int i=0 ; i<commande.getLignes().size();i++) {
+            int stock = commande.getLignes().get(i).getProduit().getUnitesEnStock() ;
+            int quantite = commande.getLignes().get(i).getQuantite();
+            int resultat = stock - quantite;
+
+            int stockcommmande = commande.getLignes().get(i).getProduit().getUnitesCommandees() ;
+            int unitecommande = stockcommmande -quantite  ;
+            commande.getLignes().get(i).getProduit().setUnitesEnStock(resultat);
+            commande.getLignes().get(i).getProduit().setUnitesCommandees(unitecommande);
+        }
+
+        return commande;
+
     }
 }
